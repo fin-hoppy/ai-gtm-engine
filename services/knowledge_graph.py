@@ -124,6 +124,89 @@ def build_graph(
     return graph
 
 
+def build_graph_view(graph: nx.DiGraph, selected: str) -> dict:
+    layers = list(nx.bfs_layers(graph.to_undirected(as_view=True), ["product"]))
+    rows = max(map(len, layers))
+    nodes = []
+    relation_labels = {
+        "matched_to": "Matches product",
+        "works_at": "Works at",
+        "has_signal": "Buying signal",
+        "competes_with": "Competes with",
+    }
+    edges = [
+        {"source": source, "target": target, "label": relation_labels.get(
+            data["relationship"], data["relationship"].replace("_", " ").capitalize()
+        )}
+        for source, target, data in graph.edges(data=True)
+    ]
+    relations = {node: [] for node in graph}
+    for edge in edges:
+        origin, target = edge["source"], edge["target"]
+        description = f"{graph.nodes[origin]['label']} / {edge['label']} / {graph.nodes[target]['label']}"
+        relations[origin].append(description)
+        relations[target].append(description)
+
+    for column, layer in enumerate(layers):
+        for index, node in enumerate(layer):
+            data = graph.nodes[node]
+            kind = data["entity_type"]
+            description = data.get("description") or data.get("positioning")
+            facts = [
+                [label, str(data[field])]
+                for field, label in (
+                    ("industry", "Industry"),
+                    ("title", "Role"),
+                    ("product_name", "Product"),
+                    ("verification", "Verification"),
+                )
+                if data.get(field)
+            ]
+            if data.get("fit_score") is not None:
+                facts.insert(0, ["Fit score", f"{data['fit_score']}/100"])
+
+            source_data = data
+            if kind in {"Person", "Signal"}:
+                for neighbor in (*graph.predecessors(node), *graph.successors(node)):
+                    if graph.nodes[neighbor]["entity_type"] == "Company":
+                        source_data = graph.nodes[neighbor]
+                        break
+            sources = [
+                {"title": item["title"], "url": item["url"], "excerpt": item.get("excerpt")}
+                for item in source_data.get("sources", [])
+                if item["url"].lower().startswith(("https://", "http://"))
+            ]
+            nodes.append({
+                "id": node,
+                "name": data["label"],
+                "kind": kind,
+                "color": {
+                    "Product": "#9cc4ff",
+                    "Company": "#91e6b4",
+                    "Person": "#dac0ff",
+                    "Competitor": "#ffb2aa",
+                    "Signal": "#ffd287",
+                }[kind],
+                "summary": description or " | ".join(value for _, value in facts[:2]),
+                "description": description,
+                "facts": facts,
+                "relations": relations[node],
+                "sources": sources,
+                "source_heading": "Sources" if source_data is data else "Related company sources",
+                "column": column,
+                "row": index + (rows - len(layer)) / 2,
+            })
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "columns": len(layers),
+        "rows": rows,
+        "selected": selected,
+        "signature": [(node["id"], node["name"]) for node in nodes],
+    }
+
+
 def visualize_graph(
     graph: nx.DiGraph,
 ) -> Digraph:

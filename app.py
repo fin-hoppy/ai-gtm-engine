@@ -71,6 +71,212 @@ def reject_icp():
     st.session_state.pop("icp_json", None)
 
 
+
+def render_icp_profile(icp_data: dict):
+
+    st.markdown("### Executive Summary")
+
+    with st.container(border=True):
+        st.write(icp_data.get("summary", ""))
+
+    # Company profile
+    company_size = icp_data.get(
+        "company_size", {}
+    )
+
+    minimum = company_size.get("min_employees")
+    maximum = company_size.get("max_employees")
+
+    if minimum is not None and maximum is not None:
+        employee_range = f"{minimum:,} - {maximum:,}"
+    elif minimum is not None:
+        employee_range = f"{minimum:,}+"
+    elif maximum is not None:
+        employee_range = f"Up to {maximum:,}"
+    else:
+        employee_range = "Unknown"
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric(
+        "Company Size",
+        employee_range,
+    )
+
+    col2.metric(
+        "Target Industries",
+        len(icp_data.get("industries", [])),
+    )
+
+    col3.metric(
+        "Buyer Personas",
+        len(icp_data.get("buyer_personas", [])),
+    )
+
+    st.write(
+        "Target Regions:",
+        ", ".join(
+            icp_data.get("target_regions", [])
+        ) or "Not specified",
+    )
+
+    st.divider()
+
+    # Target industries
+    st.subheader("Target Industries")
+
+    industries = icp_data.get("industries", [])
+
+    for industry in industries:
+
+        col1, col2 = st.columns([3, 1])
+
+        confidence = industry.get(
+            "confidence", 0
+        )
+
+        col1.markdown(
+            f"**{industry['name']}**"
+        )
+
+        col2.write(f"{confidence:.0%}")
+
+        st.progress(confidence)
+
+        st.caption(
+            f"NAICS: {industry.get('naics_code') or 'N/A'}"
+            f" | SIC: {industry.get('sic_code') or 'N/A'}"
+        )
+
+    st.caption(
+        "Confidence scores are AI-generated estimates."
+    )
+
+    st.divider()
+
+    # Buyer personas
+    st.subheader("Buyer Personas")
+
+    personas = icp_data.get("buyer_personas", [])
+
+    for i in range(0, len(personas), 2):
+
+        columns = st.columns(2)
+
+        for column, persona in zip(
+            columns,
+            personas[i:i + 2],
+        ):
+
+            with column:
+
+                with st.container(border=True):
+
+                    st.markdown(
+                        f"#### {persona['title']}"
+                    )
+
+                    st.caption(
+                        persona.get("department", "")
+                    )
+
+                    st.write(
+                        "Seniority:",
+                        persona.get("seniority", ""),
+                    )
+
+                    confidence = persona.get(
+                        "confidence", 0
+                    )
+
+                    st.progress(confidence)
+
+                    st.caption(
+                        f"Confidence: {confidence:.0%}"
+                    )
+
+                    st.markdown("**Pain Points**")
+
+                    for pain in persona.get(
+                        "pain_points", []
+                    ):
+
+                        st.write("•", pain)
+
+    st.divider()
+
+    # Buying signals
+    st.subheader("Buying Signals")
+
+    for signal in icp_data.get(
+        "buying_signals", []
+    ):
+
+        with st.container(border=True):
+
+            st.markdown(
+                f"**{signal['event']}**"
+            )
+
+            st.write(
+                signal.get("reasoning", "")
+            )
+
+            confidence = signal.get(
+                "confidence", 0
+            )
+
+            st.progress(confidence)
+
+            st.caption(
+                f"Confidence: {confidence:.0%}"
+            )
+
+    # Expansion opportunities
+    with st.expander("Expansion Opportunities"):
+
+        for segment in icp_data.get(
+            "expansion_segments", []
+        ):
+
+            st.markdown(
+                f"**{segment['industry']}**"
+            )
+
+            st.write(
+                segment.get("use_case", "")
+            )
+
+            st.write(
+                segment.get("reasoning", "")
+            )
+
+            st.caption(
+                f"Confidence: "
+                f"{segment.get('confidence', 0):.0%}"
+            )
+
+            st.divider()
+
+    # Negative signals
+    with st.expander("Negative Signals"):
+
+        for signal in icp_data.get(
+            "negative_signals", []
+        ):
+
+            st.warning(signal)
+
+    # Assumptions
+    with st.expander("AI Assumptions"):
+
+        for assumption in icp_data.get(
+            "assumptions", []
+        ):
+
+            st.write("•", assumption)
+
+
 st.title("Evidence GTM")
 st.caption("Better targeting, not more outreach.")
 
@@ -101,45 +307,110 @@ st.caption("Better targeting, not more outreach.")
 
 with workspace_tab_icp:
 
-    st.header("1. Product Intake")
+
+    st.header("Product Intake")
+
+    st.caption(
+        "Define your product and target market."
+    )
+
+    saved_product = st.session_state.get(
+        "product", {}
+    )
 
     with st.form("product_intake"):
 
-        name = st.text_input("Product Name")
+        name = st.text_input(
+            "Product Name",
+            value=saved_product.get("name", ""),
+        )
 
         description = st.text_area(
-            "Product Description"
+            "Product Description",
+            value=saved_product.get(
+                "description", ""
+            ),
+            height=120,
         )
 
-        features = st.text_area(
-            "Core Features (one per line)"
-        )
+        col1, col2 = st.columns(2)
 
-        constraints = st.text_area(
-            "Technical Constraints"
-        )
+        with col1:
 
-        customers = st.text_area(
-            "Existing Customers"
-        )
+            features = st.text_area(
+                "Core Features (one per line)",
+                value="\n".join(
+                    saved_product.get("features", [])
+                ),
+                height=180,
+            )
 
-        reference_wins = st.text_area(
-            "Reference Wins"
-        )
+            pricing = st.text_input(
+                "Pricing",
+                value=saved_product.get("pricing", ""),
+            )
 
-        pricing = st.text_input("Pricing")
+            monetization = st.text_input(
+                "Monetization Model",
+                value=saved_product.get(
+                    "monetization_model", ""
+                ),
+            )
 
-        contract_value = st.text_input("Contract Value")
+        with col2:
 
-        monetization = st.text_input("Monetization Model")
+            constraints = st.text_area(
+                "Technical Constraints",
+                value=saved_product.get(
+                    "technical_constraints", ""
+                ),
+                height=180,
+            )
 
-        regions = st.text_input(
-            "Target Regions (comma separated)"
-        )
+            contract_value = st.text_input(
+                "Contract Value",
+                value=saved_product.get(
+                    "contract_value", ""
+                ),
+            )
+
+            regions = st.text_input(
+                "Target Regions (comma separated)",
+                value=", ".join(
+                    saved_product.get(
+                        "target_regions", []
+                    )
+                ),
+            )
+
+        with st.expander(
+            "Additional Business Information"
+        ):
+
+            customers = st.text_area(
+                "Existing Customers",
+                value=saved_product.get(
+                    "existing_customers", ""
+                ),
+            )
+
+            reference_wins = st.text_area(
+                "Reference Wins",
+                value=saved_product.get(
+                    "reference_wins", ""
+                ),
+            )
 
         submitted = st.form_submit_button(
             "Generate ICP",
             type="primary",
+        )
+
+    if saved_product:
+
+        st.caption(
+            "Product information restored "
+            "from workspace."
         )
 
 
@@ -191,12 +462,22 @@ with workspace_tab_icp:
         st.divider()
         st.header("2. ICP Review")
 
-        edited_json = st.text_area(
-            "Review and edit the generated ICP",
-            key="icp_json",
-            height=500,
-            on_change=invalidate_approval,
-        )
+
+        with st.expander(
+            "Advanced ICP Editor (JSON)",
+            expanded=(
+                "approved_icp"
+                not in st.session_state
+            ),
+        ):
+
+            edited_json = st.text_area(
+                "Review and edit the generated ICP",
+                key="icp_json",
+                height=500,
+                on_change=invalidate_approval,
+            )
+
 
         st.caption(
             "Confidence scores and expansion segments "
@@ -229,14 +510,23 @@ with workspace_tab_icp:
             )
 
 
+
     if "approved_icp" in st.session_state:
 
         st.divider()
-        st.header("3. Approved ICP")
+        st.header("Ideal Customer Profile")
 
         st.success("ICP approved by the user.")
 
-        st.json(st.session_state["approved_icp"])
+        render_icp_profile(
+            st.session_state["approved_icp"]
+        )
+
+        with st.expander("Raw ICP Data"):
+
+            st.json(
+                st.session_state["approved_icp"]
+            )
 
 
 # ==========================================
@@ -250,10 +540,9 @@ from services.discovery import discover
 with workspace_tab_discovery:
 
 
-    if "approved_icp" in st.session_state:
+    st.header("Customer & Competitor Discovery")
 
-        st.divider()
-        st.header("4. Customer & Competitor Discovery")
+    if "approved_icp" in st.session_state:
 
         product = Product.model_validate(
             st.session_state["product"]
@@ -514,6 +803,8 @@ with workspace_tab_discovery:
                                 )
 
                                 st.text(source.excerpt)
+    else:
+        st.info("Open Product & ICP and approve an ICP to start discovery.")
 
 
 # ==========================================
@@ -522,20 +813,189 @@ with workspace_tab_discovery:
 
 from services.knowledge_graph import (
     build_graph,
-    visualize_graph,
+    build_graph_view,
     find_opportunities,
+    visualize_graph,
 )
+
+
+from pathlib import Path as GraphAssetPath
+
+_graph_assets = GraphAssetPath(__file__).resolve().parent / "services"
+_graph_canvas = st.components.v2.component(
+    "knowledge_graph_canvas",
+    html="""
+    <div class="kg-shell">
+      <div class="kg-toolbar">
+        <span class="kg-help">Hover to preview. Click to select. Drag the background to move.</span>
+        <div class="kg-controls" role="group" aria-label="Graph zoom">
+          <button type="button" data-zoom="0.85" aria-label="Zoom out">&minus;</button>
+          <button type="button" data-zoom="1.18" aria-label="Zoom in">+</button>
+          <button type="button" data-zoom="fit">Fit</button>
+        </div>
+      </div>
+      <div class="kg-viewport" role="region" aria-label="Knowledge graph">
+        <div class="kg-space"><div class="kg-scene"></div></div>
+      </div>
+      <article class="kg-paper" aria-label="Entity preview" hidden></article>
+    </div>
+    """,
+    css=(_graph_assets / "knowledge_graph.css").read_text(encoding="utf-8"),
+    js=(_graph_assets / "knowledge_graph.js").read_text(encoding="utf-8"),
+)
+
+
+def render_graph_explorer(graph):
+    import re
+
+    def plain(value):
+        return re.sub(r"([\\*_{}\[\]<>!~|])", r"\\\1", " ".join(str(value).split()))
+
+    root = "product"
+    selection_key = "graph_selected_entity"
+    saved_id, saved_label = st.session_state.get(selection_key, (root, ""))
+    selected = root
+    if saved_id in graph and graph.nodes[saved_id]["label"] == saved_label:
+        selected = saved_id
+
+    chart_key = "knowledge_graph_canvas"
+
+    def select_from_chart():
+        pick = st.session_state.get(chart_key, {}).get("node_pick")
+        if not isinstance(pick, dict):
+            return
+        node_id, name = pick.get("id"), pick.get("name")
+        if node_id in graph and graph.nodes[node_id]["label"] == name:
+            st.session_state[selection_key] = (node_id, name)
+            st.session_state["graph_entity_search"] = ""
+
+    st.subheader("Graph overview")
+    _graph_canvas(
+        data=build_graph_view(graph, selected),
+        key=chart_key,
+        on_node_pick_change=select_from_chart,
+    )
+
+    def node_button(node_id):
+        label = graph.nodes[node_id]["label"]
+        st.button(
+            plain(label),
+            key=f"graph_entity_{node_id}",
+            type="primary" if node_id == selected else "secondary",
+            width="stretch",
+            on_click=st.session_state.update,
+            args=({selection_key: (node_id, label)},),
+        )
+
+    tree, details = st.columns([3, 2], gap="large")
+    with tree:
+        st.subheader("Explore entities")
+        query = st.text_input(
+            "Find an entity",
+            placeholder="Search products, companies, people, or signals",
+            key="graph_entity_search",
+        ).strip().casefold()
+
+        def matches(node_id):
+            return query in graph.nodes[node_id]["label"].casefold()
+
+        root_matches = matches(root)
+        if root_matches:
+            st.caption("Product")
+            node_button(root)
+
+        prospects = []
+        for company in graph.predecessors(root):
+            children = [
+                node for node in (*graph.predecessors(company), *graph.successors(company))
+                if node != root
+            ]
+            if not matches(company):
+                children = [node for node in children if matches(node)]
+                if not children:
+                    continue
+            prospects.append((company, children))
+
+        competitors = [node for node in graph.successors(root) if matches(node)]
+        if prospects:
+            st.markdown("**Prospects**")
+        for company, children in prospects:
+            company_data = graph.nodes[company]
+            label = plain(company_data["label"])
+            score = company_data["fit_score"]
+            with st.expander(
+                f"{label} (Fit {score}/100)",
+                expanded=bool(query) or selected == company or selected in children,
+            ):
+                node_button(company)
+                for child in children:
+                    kind = graph.nodes[child]["entity_type"]
+                    st.caption("Decision-maker" if kind == "Person" else "Buying signal")
+                    node_button(child)
+
+        if competitors:
+            st.markdown("**Competitors**")
+            for competitor in competitors:
+                node_button(competitor)
+
+        if not prospects and not competitors:
+            if query and not root_matches:
+                st.info("No entities match your search.")
+            elif not query:
+                st.info("Discovery returned no prospects or competitors.")
+
+    with details:
+        data = graph.nodes[selected]
+        st.subheader("Entity details")
+        st.markdown(f"**{plain(data['label'])}**")
+        st.caption(data["entity_type"])
+        for field, label in (
+            ("industry", "Industry"),
+            ("fit_score", "Fit score"),
+            ("title", "Role"),
+            ("product_name", "Product"),
+            ("verification", "Verification"),
+        ):
+            if data.get(field) is not None:
+                value = f"{data[field]}/100" if field == "fit_score" else data[field]
+                st.markdown(f"**{label}**: {plain(value)}")
+        for field in ("description", "positioning"):
+            if data.get(field):
+                st.write(plain(data[field]))
+        if data.get("website"):
+            st.link_button("Company website", data["website"])
+
+        edges = list(graph.in_edges(selected, data=True)) + list(graph.out_edges(selected, data=True))
+        if edges:
+            st.markdown("**Relationships**")
+        evidence = data.get("sources", [])
+        for origin, destination, edge in edges:
+            source = graph.nodes[origin]
+            target = graph.nodes[destination]
+            relation = edge["relationship"].replace("_", " ")
+            st.write(f"{plain(source['label'])} **{relation}** {plain(target['label'])}")
+            if data["entity_type"] in {"Person", "Signal"}:
+                related = source if destination == selected else target
+                if related["entity_type"] == "Company":
+                    evidence = related.get("sources", [])
+
+        if evidence:
+            heading = "Related company sources" if data["entity_type"] in {"Person", "Signal"} else "Sources"
+            st.markdown(f"**{heading}**")
+            for item in evidence:
+                st.link_button(plain(item["title"]), item["url"])
+                st.write(plain(item["excerpt"]))
+
 
 with workspace_tab_graph:
 
+
+    st.header("Dynamic Knowledge Graph")
 
     if (
         "approved_icp" in st.session_state
         and "discovery_result" in st.session_state
     ):
-
-        st.divider()
-        st.header("5. Dynamic Knowledge Graph")
 
         st.caption(
             "Connect products, companies, "
@@ -575,33 +1035,10 @@ with workspace_tab_graph:
             }),
         )
 
-        st.graphviz_chart(
-            visualize_graph(graph)
-        )
+        render_graph_explorer(graph)
 
-        st.caption(
-            "Relationships are based on agent-reported "
-            "research and require source review."
-        )
-
-        # Entity inspection
-        with st.expander("Explore Entities"):
-
-            for node_id, data in graph.nodes(
-                data=True
-            ):
-
-                st.markdown(
-                    f"**{data['label']}**"
-                )
-
-                st.write(
-                    "Entity Type:",
-                    data["entity_type"],
-                )
-
-                st.json(data)
-                st.divider()
+        with st.expander("Directed graph overview"):
+            st.graphviz_chart(visualize_graph(graph), width="stretch")
 
         # Relationship inspection
         with st.expander("Explore Relationships"):
@@ -670,6 +1107,12 @@ with workspace_tab_graph:
                         )
 
                         st.text(source["excerpt"])
+    elif "approved_icp" not in st.session_state:
+        st.info("Open Product & ICP and approve an ICP first.")
+    else:
+        st.info(
+            "Open Discovery and select Discover Customers & Competitors."
+        )
 
 
 # ==========================================
@@ -684,13 +1127,12 @@ from services.outreach import generate_outreach
 
 with workspace_tab_outreach:
 
+    st.header("Enrichment & Outreach")
+
     if (
         "approved_icp" in st.session_state
         and "discovery_result" in st.session_state
     ):
-
-        st.divider()
-        st.header("6. Enrichment & Outreach")
 
         outreach_product = Product.model_validate(
             st.session_state["product"]
@@ -704,7 +1146,7 @@ with workspace_tab_outreach:
 
         if not prospects:
 
-            st.info("No prospects available.")
+            st.info("Discovery found no prospects to contact. Review the approved ICP in Product & ICP and run Discovery again.")
 
         else:
 
@@ -830,30 +1272,59 @@ with workspace_tab_outreach:
                     draft = record["draft"]
                     revision = record["revision"]
 
-                    subject = st.text_input(
-                        "Subject",
-                        value=draft["subject"],
-                        key=f"subject_{revision}",
-                    )
+                    editor_col, evidence_col = st.columns([3, 2])
+                    with editor_col:
+                        st.markdown("#### Email Draft")
+                        subject = st.text_input(
+                            "Subject",
+                            value=draft["subject"],
+                            key=f"subject_{revision}",
+                        )
 
-                    body = st.text_area(
-                        "Email Body",
-                        value=draft["body"],
-                        height=260,
-                        key=f"body_{revision}",
-                    )
+                        body = st.text_area(
+                            "Email Body",
+                            value=draft["body"],
+                            height=260,
+                            key=f"body_{revision}",
+                        )
 
-                    contact = st.text_input(
-                        "Public Business Contact (optional)",
-                        value=record["contact"],
-                        key=f"contact_{revision}",
-                    )
+                        contact = st.text_input(
+                            "Public Business Contact (optional)",
+                            value=record["contact"],
+                            key=f"contact_{revision}",
+                        )
 
-                    contact_source = st.text_input(
-                        "Contact Source URL (optional)",
-                        value=record["contact_source"],
-                        key=f"contact_source_{revision}",
-                    )
+                        contact_source = st.text_input(
+                            "Contact Source URL (optional)",
+                            value=record["contact_source"],
+                            key=f"contact_source_{revision}",
+                        )
+
+                    with evidence_col:
+                        st.markdown("#### Review Evidence")
+                        with st.expander(
+                            "Generation Rationale"
+                        ):
+
+                            st.write(draft["reasoning"])
+
+                            st.caption(
+                                "Rationale for the original "
+                                "AI-generated draft."
+                            )
+
+                        with st.expander(
+                            "Evidence Used",
+                            expanded=True,
+                        ):
+
+                            for index in draft["source_indices"]:
+
+                                source = prospect.sources[index]
+
+                                st.write(source.title)
+                                st.text(str(source.url))
+                                st.text(source.excerpt)
 
                     # Any edit invalidates earlier approval.
                     if (
@@ -873,30 +1344,6 @@ with workspace_tab_outreach:
                         record["contact_source"] = (
                             contact_source
                         )
-
-                    with st.expander(
-                        "Generation Rationale"
-                    ):
-
-                        st.write(draft["reasoning"])
-
-                        st.caption(
-                            "Rationale for the original "
-                            "AI-generated draft."
-                        )
-
-                    with st.expander(
-                        "Evidence Used",
-                        expanded=True,
-                    ):
-
-                        for index in draft["source_indices"]:
-
-                            source = prospect.sources[index]
-
-                            st.write(source.title)
-                            st.text(str(source.url))
-                            st.text(source.excerpt)
 
                     st.caption(
                         "Review the message and its sources "
@@ -961,6 +1408,12 @@ with workspace_tab_outreach:
                             "Approved draft only. "
                             "No email has been sent."
                         )
+    elif "approved_icp" not in st.session_state:
+        st.info("Open Product & ICP and approve an ICP first.")
+    else:
+        st.info(
+            "Open Discovery and select Discover Customers & Competitors."
+        )
 
 
 # ==========================================
@@ -981,13 +1434,12 @@ from services.lead_manager import (
 with workspace_tab_pipeline:
 
 
+    st.header("Lead Management & Dashboard")
+
     if (
         "approved_icp" in st.session_state
         and "discovery_result" in st.session_state
     ):
-
-        st.divider()
-        st.header("7. Lead Management & Dashboard")
 
         pipeline_product = Product.model_validate(
             st.session_state["product"]
@@ -1184,7 +1636,7 @@ with workspace_tab_pipeline:
 
         else:
 
-            st.info("No leads available.")
+            st.info("No leads to move. The pipeline is populated from prospects found in Discovery.")
 
         # Conversion analytics
         st.subheader("Performance Analytics")
@@ -1286,6 +1738,12 @@ with workspace_tab_pipeline:
             file_name="pipeline_export.json",
             mime="application/json",
             key=f"export_pipeline_{pipeline_scope}",
+        )
+    elif "approved_icp" not in st.session_state:
+        st.info("Open Product & ICP and approve an ICP first.")
+    else:
+        st.info(
+            "Open Discovery and select Discover Customers & Competitors."
         )
 
 
