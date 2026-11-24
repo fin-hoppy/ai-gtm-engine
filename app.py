@@ -6,6 +6,55 @@ from models.icp import ICP
 from services.icp_engine import generate_icp
 
 
+# ==========================================
+# Workspace Persistence
+# ==========================================
+
+import os
+
+from dotenv import load_dotenv
+
+from core.database import (
+    STATE_KEYS,
+    init_db,
+    save_workspace,
+    load_workspace,
+)
+
+
+load_dotenv()
+
+PERSISTENCE_ENABLED = (
+    os.getenv("GTM_LOCAL_PERSISTENCE", "0") == "1"
+)
+
+
+if PERSISTENCE_ENABLED:
+
+    init_db()
+
+    if "_workspace_loaded" not in st.session_state:
+
+        has_existing_data = any(
+            key in st.session_state
+            for key in STATE_KEYS
+        )
+
+        if not has_existing_data:
+
+            saved_data = load_workspace()
+
+            for key in STATE_KEYS:
+
+                if key in saved_data:
+
+                    st.session_state[key] = (
+                        saved_data[key]
+                    )
+
+        st.session_state["_workspace_loaded"] = True
+
+
 st.set_page_config(
     page_title="Evidence GTM",
     page_icon="🎯",
@@ -1202,3 +1251,25 @@ if (
         mime="application/json",
         key=f"export_pipeline_{pipeline_scope}",
     )
+
+
+# ==========================================
+# Save Workspace
+# ==========================================
+
+if PERSISTENCE_ENABLED:
+
+    try:
+
+        save_workspace(st.session_state)
+
+        st.sidebar.caption(
+            "Workspace: Saved locally"
+        )
+
+    except Exception as error:
+
+        st.sidebar.warning(
+            f"Workspace save failed: "
+            f"{type(error).__name__}"
+        )
